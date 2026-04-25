@@ -1,9 +1,9 @@
 export const CLONES = [
-  { id: '001', name: 'The Original',   short: 'You',   color: '#7c6af7', desc: 'You, as you are — the anchor' },
+  { id: '001', name: 'The Original',   short: 'Original',   color: '#7c6af7', desc: 'You, as you are — the anchor' },
   { id: '002', name: 'The Ambitious',  short: 'Ambitious',  color: '#f59e0b', desc: 'Every bold choice made' },
-  { id: '003', name: 'The Recluse',    short: 'Quiest',    color: '#34d399', desc: 'Safety always chosen' },
-  { id: '004', name: 'The Ancient',    short: 'Olden Age',    color: '#f87171', desc: 'Born 1520, same soul' },
-  { id: '005', name: 'The Successor',  short: 'Futurista',  color: '#38bdf8', desc: 'Born 2224, your echo' },
+  { id: '003', name: 'The Recluse',    short: 'Recluse',    color: '#34d399', desc: 'Safety always chosen' },
+  { id: '004', name: 'The Ancient',    short: 'Ancient',    color: '#f87171', desc: 'Born 1520, same soul' },
+  { id: '005', name: 'The Successor',  short: 'Successor',  color: '#38bdf8', desc: 'Born 2224, your echo' },
   { id: '006', name: 'The Opposite',   short: 'Opposite',   color: '#e879f9', desc: 'Every trait inverted' },
 ]
 
@@ -18,7 +18,7 @@ export const TENSION = {
   '002-006': 0.18, '006-002': 0.18,
   '001-003': 0.25, '003-001': 0.25,
   '002-004': 0.22, '004-002': 0.22,
-  '003-005': 0.20, '005-003': 0.20,
+  '003-005': 0.20, '005-003': 0.56,
   '004-006': 0.30, '006-004': 0.30,
 }
 
