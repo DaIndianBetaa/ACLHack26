@@ -1,5 +1,5 @@
-const API_URL = 'https://api.anthropic.com/v1/messages'
-const MODEL = 'claude-sonnet-4-20250514'
+const API_URL = 'https://api.openai.com/v1/chat/completions'
+const MODEL = 'gpt-4o-mini'
 
 export async function streamCloneResponse({ systemPrompt, messages, onToken, onDone, onError }) {
   try {
@@ -10,8 +10,10 @@ export async function streamCloneResponse({ systemPrompt, messages, onToken, onD
         model: MODEL,
         max_tokens: 1000,
         stream: true,
-        system: systemPrompt,
-        messages,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages,
+        ],
       }),
     })
 
@@ -37,8 +39,9 @@ export async function streamCloneResponse({ systemPrompt, messages, onToken, onD
         if (data === '[DONE]') continue
         try {
           const parsed = JSON.parse(data)
-          if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-            fullText += parsed.delta.text
+          const text = parsed.choices?.[0]?.delta?.content
+          if (text) {
+            fullText += text
             onToken?.(fullText)
           }
         } catch {}
