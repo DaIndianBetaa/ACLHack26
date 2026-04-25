@@ -1,122 +1,98 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import React, { useState } from 'react'
+import Landing from './Landing.jsx'
+import Quiz from './Quiz.jsx'
+import InitScreen from './InitScreen.jsx'
+import Chat from './Chat.jsx'
 
-function App() {
-  const [count, setCount] = useState(0)
+const API_KEY = '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'
 
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+// Inject API key globally so api.js can use it
+if (API_KEY && API_KEY !== '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') {
+  window.__ECHOES_API_KEY__ = API_KEY
 }
 
-export default App
+// Override fetch to inject auth header for Anthropic calls
+const _origFetch = window.fetch
+window.fetch = function(url, opts = {}) {
+  if (typeof url === 'string' && url.includes('anthropic.com') && window.__ECHOES_API_KEY__) {
+    opts = { ...opts, headers: { ...opts.headers, 'x-api-key': window.__ECHOES_API_KEY__, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } }
+  }
+  return _origFetch(url, opts)
+}
+
+export default function App() {
+  const [screen, setScreen] = useState('landing')
+  const [answers, setAnswers] = useState({})
+  const [tempKey, setTempKey] = useState('')
+  const [keyError, setKeyError] = useState('')
+
+  const handleStart = () => {
+    setScreen('quiz-key')
+  }
+
+  const handleKeySubmit = () => {
+    const k = tempKey.trim()
+    if (!k.startsWith('sk-ant-')) {
+      setKeyError('Key should start with sk-ant-')
+      return
+    }
+    window.__ECHOES_API_KEY__ = k
+    setScreen('quiz')
+  }
+
+  const handleQuizComplete = (a) => {
+    setAnswers(a)
+    setScreen('init')
+  }
+
+  if (screen === 'landing') return <Landing onStart={handleStart} />
+
+  if (screen === 'api-key') return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', height: '100vh', gap: '1.5rem', padding: '2rem', maxWidth: 480, margin: '0 auto',
+    }}>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.3rem', fontWeight: 700, color: 'var(--text)' }}>
+        Enter your Anthropic API Key
+      </div>
+      <p style={{ fontSize: '0.72rem', color: 'var(--muted)', lineHeight: 1.8, textAlign: 'center' }}>
+        ECHOES calls the Claude API directly from your browser.<br />
+        Your key is never stored — it lives only in this session.
+      </p>
+      <input
+        type="password"
+        value={tempKey}
+        onChange={e => { setTempKey(e.target.value); setKeyError('') }}
+        onKeyDown={e => e.key === 'Enter' && handleKeySubmit()}
+        placeholder="sk-ant-api03-..."
+        style={{
+          width: '100%', padding: '0.8rem 1rem', background: 'var(--bg2)',
+          border: `1px solid ${keyError ? '#f87171' : 'var(--border2)'}`, borderRadius: 2,
+          color: 'var(--text)', fontFamily: "'Space Mono', monospace", fontSize: '0.78rem',
+          outline: 'none',
+        }}
+      />
+      {keyError && <div style={{ fontSize: '0.68rem', color: '#f87171' }}>{keyError}</div>}
+      <button onClick={handleKeySubmit} style={{
+        padding: '0.7rem 2rem', background: 'rgba(124,106,247,0.12)',
+        border: '1px solid rgba(124,106,247,0.4)', borderRadius: 2,
+        color: '#7c6af7', fontFamily: "'Space Mono', monospace", fontSize: '0.7rem',
+        letterSpacing: '0.14em', cursor: 'pointer',
+      }}>
+        CONTINUE →
+      </button>
+      <p style={{ fontSize: '0.6rem', color: 'var(--muted)', textAlign: 'center', lineHeight: 1.7 }}>
+        Or hardcode your key in <code style={{ color: 'var(--muted2)' }}>src/App.jsx</code> to skip this step.
+      </p>
+    </div>
+  )
+
+  if (screen === 'quiz') return <Quiz onComplete={handleQuizComplete} />
+
+  if (screen === 'init') return <InitScreen onReady={() => setScreen('chat')} />
+
+  if (screen === 'chat') return <Chat answers={answers} />
+
+  return null
+}
