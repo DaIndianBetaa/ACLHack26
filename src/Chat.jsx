@@ -5,6 +5,9 @@ import { streamCloneResponse } from './api.js'
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
+// Clone color map for pill styling
+const CLONE_COLORS = Object.fromEntries(CLONES.map(c => [c.id, c.color]))
+
 function Avatar({ clone, size = 32 }) {
   return (
     <div style={{
@@ -15,6 +18,36 @@ function Avatar({ clone, size = 32 }) {
     }}>
       {clone.id}
     </div>
+  )
+}
+
+// Renders message text, turning @001-@006 into colored pills
+function MessageText({ text }) {
+  if (!text) return <span style={{ opacity: 0.4, fontStyle: 'italic' }}>...</span>
+  const parts = text.split(/(@00[1-6])/g)
+  return (
+    <>
+      {parts.map((part, i) => {
+        const match = part.match(/^@(00[1-6])$/)
+        if (match) {
+          const id = match[1]
+          const color = CLONE_COLORS[id] || '#7c6af7'
+          return (
+            <span key={i} style={{
+              display: 'inline-flex', alignItems: 'center',
+              background: `${color}22`, border: `1px solid ${color}55`,
+              color: color, borderRadius: 999,
+              padding: '1px 7px', fontSize: '0.72rem', fontWeight: 700,
+              margin: '0 1px', fontFamily: "'Space Mono', monospace",
+              letterSpacing: '0.03em', verticalAlign: 'middle',
+            }}>
+              {part}
+            </span>
+          )
+        }
+        return part
+      })}
+    </>
   )
 }
 
@@ -32,7 +65,7 @@ function Message({ msg, clones }) {
           fontSize: '0.82rem', lineHeight: 1.65, color: 'var(--text)', whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
         }}>
-          {msg.text}
+          <MessageText text={msg.text} />
         </div>
       </div>
     )
@@ -54,7 +87,7 @@ function Message({ msg, clones }) {
           fontSize: '0.82rem', lineHeight: 1.65, color: 'var(--text)', whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
         }}>
-          {msg.text || <span style={{ opacity: 0.4, fontStyle: 'italic' }}>...</span>}
+          <MessageText text={msg.text} />
         </div>
       </div>
     </div>
@@ -69,6 +102,123 @@ function SystemMsg({ text }) {
     }}>
       — {text} —
     </div>
+  )
+}
+
+// Discord/Snapchat-style mention input
+function MentionInput({ value, onChange, onKeyDown, inputRef, placeholder }) {
+  const editableRef = useRef(null)
+
+  // Clear the div when value resets to '' (after send)
+  useEffect(() => {
+    if (value === '' && editableRef.current) {
+      editableRef.current.innerHTML = ''
+    }
+  }, [value])
+
+  // Expose focus() via inputRef
+  useEffect(() => {
+    if (inputRef) inputRef.current = { focus: () => editableRef.current?.focus() }
+  }, [inputRef])
+
+  const getPlainText = () => {
+    const nodes = editableRef.current?.childNodes || []
+    let text = ''
+    for (const node of nodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        text += node.textContent.replace(/\u200B/g, '')
+      } else if (node.dataset?.mention) {
+        text += `@${node.dataset.mention}`
+      } else {
+        text += node.textContent.replace(/\u200B/g, '')
+      }
+    }
+    return text
+  }
+
+  const handleInput = () => {
+    const sel = window.getSelection()
+    const range = sel?.getRangeAt(0)
+    const textNode = range?.startContainer
+
+    if (textNode?.nodeType === Node.TEXT_NODE) {
+      const match = textNode.textContent.match(/@(00[1-6])/)
+      if (match) {
+        const id = match[1]
+        const color = CLONE_COLORS[id] || '#7c6af7'
+
+        // Remove the @00x text
+        textNode.textContent = textNode.textContent.replace(match[0], '')
+
+        // Build pill
+        const pill = document.createElement('span')
+        pill.dataset.mention = id
+        pill.contentEditable = 'false'
+        pill.textContent = `@${id}`
+        pill.style.cssText = `
+          display: inline-flex; align-items: center;
+          background: ${color}22;
+          border: 1px solid ${color}66;
+          color: ${color};
+          border-radius: 999px;
+          padding: 1px 8px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          margin: 0 2px;
+          cursor: default;
+          user-select: none;
+          font-family: 'Space Mono', monospace;
+          letter-spacing: 0.04em;
+          vertical-align: middle;
+        `
+
+        // Insert pill at cursor
+        range.insertNode(pill)
+
+        // Move cursor after pill with a zero-width space
+        const spacer = document.createTextNode('\u200B')
+        pill.after(spacer)
+        const newRange = document.createRange()
+        newRange.setStartAfter(spacer)
+        newRange.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(newRange)
+      }
+    }
+
+    onChange(getPlainText())
+  }
+
+  return (
+    <div
+      ref={editableRef}
+      contentEditable
+      suppressContentEditableWarning
+      onInput={handleInput}
+      onKeyDown={onKeyDown}
+      data-placeholder={placeholder}
+      style={{
+        flex: 1,
+        background: 'var(--bg3)',
+        border: '1px solid var(--border2)',
+        borderRadius: 20,
+        padding: '0.65rem 1.1rem',
+        color: 'var(--text)',
+        fontFamily: "'Space Mono', monospace",
+        fontSize: '0.78rem',
+        lineHeight: 1.55,
+        outline: 'none',
+        minHeight: '2.2rem',
+        maxHeight: 110,
+        overflowY: 'auto',
+        transition: 'border-color 0.15s',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        position: 'relative',
+      }}
+      onFocus={e => e.currentTarget.style.borderColor = 'rgba(124,106,247,0.5)'}
+      onBlur={e => e.currentTarget.style.borderColor = 'var(--border2)'}
+    />
   )
 }
 
@@ -87,6 +237,8 @@ export default function Chat({ answers }) {
   const inputRef = useRef(null)
   const introsComplete = useRef(false)
   const stopped = useRef(false)
+  // FIX: use a ref so triggerReactions can call the latest fireClone without circular deps
+  const fireCloneRef = useRef(null)
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -115,6 +267,7 @@ export default function Chat({ answers }) {
     scrollToBottom()
   }, [scrollToBottom])
 
+  // FIX: use fireCloneRef to avoid stale closure — empty deps array is now safe
   const triggerReactions = useCallback(async (speakerId, spokenText) => {
     if (!introsComplete.current) return
     for (const c of CLONES) {
@@ -124,7 +277,9 @@ export default function Chat({ answers }) {
       if (Math.random() < prob) {
         await sleep(8000 + Math.random() * 7000)
         if (stopped.current) return
-        await fireClone(c.id, `@${speakerId} just said: "${spokenText}". React briefly, use @ when addressing clones — under 45 words.`)
+        // FIX: escape quotes so they don't break the prompt string
+        const safeText = spokenText.replace(/"/g, "'").slice(0, 120)
+        await fireCloneRef.current?.(c.id, `@${speakerId} just said: "${safeText}". React briefly, use @ when addressing clones — under 45 words.`)
       }
     }
   }, [])
@@ -174,6 +329,11 @@ export default function Chat({ answers }) {
     })
   }, [answers, buildHistory, startStream, updateStream, finalizeStream, setStatus])
 
+  // FIX: keep fireCloneRef in sync with the latest fireClone
+  useEffect(() => {
+    fireCloneRef.current = fireClone
+  }, [fireClone])
+
   const resetAutonomousTimer = useCallback(() => {
     if (autonomousTimer.current) clearTimeout(autonomousTimer.current)
     autonomousTimer.current = setTimeout(() => {
@@ -186,7 +346,6 @@ export default function Chat({ answers }) {
     }, 20000 + Math.random() * 17000)
   }, [fireClone, typing])
 
-  // On mount — show system message only, wait for user to speak first
   useEffect(() => {
     addSystemMsg('All 6 versions of you are online')
     introsComplete.current = true
@@ -197,7 +356,6 @@ export default function Chat({ answers }) {
     const text = input.trim()
     if (!text || busy) return
 
-    // stop command
     if (/^stop/i.test(text)) {
       stopped.current = true
       setInput('')
@@ -207,7 +365,6 @@ export default function Chat({ answers }) {
       return
     }
 
-    // resume on any normal message
     stopped.current = false
     setBusy(true)
     setInput('')
@@ -234,7 +391,8 @@ export default function Chat({ answers }) {
             await sleep(2000 + Math.random() * 2000)
             if (!stopped.current) await fireClone(c.id,
               lastPrimary
-                ? `@${primaryId} just said: "${lastPrimary.text}". React briefly, use @ when addressing clones — under 45 words.`
+                // FIX: escape quotes in the prompt
+                ? `@${primaryId} just said: "${lastPrimary.text.replace(/"/g, "'").slice(0, 120)}". React briefly, use @ when addressing clones — under 45 words.`
                 : null
             )
           }
@@ -346,6 +504,11 @@ export default function Chat({ answers }) {
             @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-5px)} }
             @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
             @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+            [contenteditable]:empty:before {
+              content: attr(data-placeholder);
+              color: var(--muted);
+              pointer-events: none;
+            }
           `}</style>
 
           {messages.map(msg => {
@@ -362,26 +525,12 @@ export default function Chat({ answers }) {
           padding: '0.85rem 1.25rem', borderTop: '1px solid var(--border)',
           background: 'var(--bg2)', display: 'flex', gap: '0.65rem', alignItems: 'flex-end',
         }}>
-          <textarea
-            ref={inputRef}
+          <MentionInput
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={setInput}
             onKeyDown={handleKeyDown}
+            inputRef={inputRef}
             placeholder="Message all clones, or @001 to address one specifically…"
-            rows={1}
-            style={{
-              flex: 1, background: 'var(--bg3)', border: '1px solid var(--border2)',
-              borderRadius: 20, padding: '0.65rem 1.1rem', color: 'var(--text)',
-              fontFamily: "'Space Mono', monospace", fontSize: '0.78rem',
-              lineHeight: 1.55, resize: 'none', outline: 'none',
-              maxHeight: 110, overflow: 'auto', transition: 'border-color 0.15s',
-            }}
-            onFocus={e => e.target.style.borderColor = 'rgba(124,106,247,0.5)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border2)'}
-            onInput={e => {
-              e.target.style.height = 'auto'
-              e.target.style.height = Math.min(e.target.scrollHeight, 110) + 'px'
-            }}
           />
           <button
             onClick={sendMessage}
