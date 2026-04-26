@@ -7,14 +7,14 @@ export default function InitScreen({ onReady }) {
 
   useEffect(() => {
     const steps = [
-      { delay: 300,  fn: () => { setVisible(['001']); setStatus('Building The Original...') } },
-      { delay: 750,  fn: () => { setVisible(v => [...v, '002']); setStatus('Building The Ambitious...') } },
-      { delay: 1150, fn: () => { setVisible(v => [...v, '003']); setStatus('Building The Recluse...') } },
-      { delay: 1500, fn: () => { setVisible(v => [...v, '004']); setStatus('Building The Ancient...') } },
-      { delay: 1850, fn: () => { setVisible(v => [...v, '005']); setStatus('Building The Successor...') } },
-      { delay: 2200, fn: () => { setVisible(v => [...v, '006']); setStatus('Building The Opposite...') } },
-      { delay: 2700, fn: () => setStatus('All 6 clones initialized.') },
-      { delay: 3400, fn: onReady },
+      { delay: 600,  fn: () => { setVisible(['001']); setStatus('Building The Original...') } },
+      { delay: 1400,  fn: () => { setVisible(v => [...v, '002']); setStatus('Building The Ambitious...') } },
+      { delay: 2250, fn: () => { setVisible(v => [...v, '003']); setStatus('Building The Quiet...') } },
+      { delay: 3100, fn: () => { setVisible(v => [...v, '004']); setStatus('Building The Ancient...') } },
+      { delay: 3725, fn: () => { setVisible(v => [...v, '005']); setStatus('Building The Future...') } },
+      { delay: 4350, fn: () => { setVisible(v => [...v, '006']); setStatus('Building The Opposite...') } },
+      { delay: 5000, fn: () => setStatus('All 6 clones initialized.') },
+      { delay: 5250, fn: onReady },
     ]
     const timers = steps.map(s => setTimeout(s.fn, s.delay))
     return () => timers.forEach(clearTimeout)

@@ -195,12 +195,15 @@ export default function Chat({ answers, apiKey }) {
     addSystemMsg('All 6 versions of you are online')
     const fireIntros = async () => {
       setBusy(true)
-      for (let i = 0; i < CLONES.length; i++) {
-        await sleep(i * 350)
-        await fireClone(CLONES[i].id, "You've just appeared in a group chat with 5 other versions of yourself. Send one short opening message reacting to this surreal moment. Under 50 words.")
+      try {
+        for (let i = 0; i < CLONES.length; i++) {
+          await sleep(i * 350)
+          await fireClone(CLONES[i].id, "You've just appeared in a group chat with 5 other versions of yourself. Send one short opening message reacting to this surreal moment. Under 50 words.")
+        }
+      } finally {
+        setBusy(false)
+        resetAutonomousTimer()
       }
-      setBusy(false)
-      resetAutonomousTimer()
     }
     fireIntros()
     return () => { if (autonomousTimer.current) clearTimeout(autonomousTimer.current) }
@@ -219,9 +222,9 @@ export default function Chat({ answers, apiKey }) {
     scrollToBottom()
     resetAutonomousTimer()
 
-    // Detect @mention
-    const mentionMatch = text.match(/@(00[1-6])/)
-    const primaryId = mentionMatch?.[1] || null
+    try {
+      const mentionMatch = text.match(/@(00[1-6])/)
+      const primaryId = mentionMatch?.[1] || null
 
     if (primaryId) {
       await fireClone(primaryId)
@@ -250,9 +253,10 @@ export default function Chat({ answers, apiKey }) {
       // Wait for all to roughly finish
       await sleep(CLONES.length * 280 + 3000)
     }
-
+  } finally {
     setBusy(false)
     resetAutonomousTimer()
+  }
   }, [input, busy, fireClone, scrollToBottom, resetAutonomousTimer])
 
   const handleKeyDown = (e) => {
@@ -279,7 +283,7 @@ export default function Chat({ answers, apiKey }) {
           background: 'linear-gradient(135deg, #7c6af7, #e879f9)',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
         }}>
-          ECHOES
+          Within
         </div>
 
         {/* Clone list */}
@@ -296,7 +300,7 @@ export default function Chat({ answers, apiKey }) {
                 onClick={() => {
                   if (!busy) {
                     setBusy(true)
-                    fireClone(c.id, "You've been quiet. Say something on your mind — under 60 words.").then(() => setBusy(false))
+                    fireClone(c.id, "You've been quiet. Say something on your mind — under 60 words.").then(() => setBusy(false)).catch(() => setBusy(false))
                   }
                 }}
               >
