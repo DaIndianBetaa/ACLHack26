@@ -54,10 +54,13 @@ No backend. No database. No user accounts. Your answers never leave your browser
 ---
 
 ## Getting Started
+Clone the repo and insert your OPENAI api key
 
 ```bash
 git clone https://github.com/DaIndianBetaa/ACLHack26
 cd within-app
+touch .env
+echo VITE_API_KEY= api key > .env
 npm install
 npm run dev
 ```
