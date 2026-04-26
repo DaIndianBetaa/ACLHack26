@@ -359,7 +359,6 @@ export default function Chat({ answers }) {
     scrollToBottom()
   }, [scrollToBottom])
 
-  // FIX: use fireCloneRef to avoid stale closure — empty deps array is now safe
   const triggerReactions = useCallback(async (speakerId, spokenText) => {
     if (!introsComplete.current) return
     const now = Date.now()

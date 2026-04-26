@@ -1,4 +1,4 @@
-const API_URL = 'v1/chat/completions' //ai helped fix the CORS issue for pulling an ai api key (ironic)
+const API_URL = '/api/v1/chat/completions' //ai helped fix the CORS issue for pulling an ai api key (ironic)
 const MODEL = 'gpt-4o-mini'
 
 export async function streamCloneResponse({ systemPrompt, messages, onToken, onDone, onError }) {
