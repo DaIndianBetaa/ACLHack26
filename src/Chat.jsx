@@ -5,8 +5,11 @@ import { streamCloneResponse } from './api.js'
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
-// Clone color map for pill styling
 const CLONE_COLORS = Object.fromEntries(CLONES.map(c => [c.id, c.color]))
+const USER_COLOR = '#7c6af7'
+
+const MAX_REACTIONS_PER_ROUND = 3
+const REACTION_COOLDOWN_MS = 15000
 
 function Avatar({ clone, size = 32 }) {
   return (
@@ -21,27 +24,54 @@ function Avatar({ clone, size = 32 }) {
   )
 }
 
-// Renders message text, turning @001-@006 into colored pills
+function UserAvatar({ size = 32 }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: `${USER_COLOR}22`, border: `1.5px solid ${USER_COLOR}55`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      fontSize: size * 0.28, fontFamily: "'Syne', sans-serif", fontWeight: 700, color: USER_COLOR,
+    }}>
+      you
+    </div>
+  )
+}
+
 function MessageText({ text }) {
   if (!text) return <span style={{ opacity: 0.4, fontStyle: 'italic' }}>...</span>
-  const parts = text.split(/(@00[1-6])/g)
+  const parts = text.split(/(@00[1-6]|@you)/g)
   return (
     <>
       {parts.map((part, i) => {
-        const match = part.match(/^@(00[1-6])$/)
-        if (match) {
-          const id = match[1]
-          const color = CLONE_COLORS[id] || '#7c6af7'
+        const cloneMatch = part.match(/^@(00[1-6])$/)
+        const userMatch = part === '@you'
+        if (cloneMatch) {
+          const id = cloneMatch[1]
+          const color = CLONE_COLORS[id] || USER_COLOR
           return (
             <span key={i} style={{
               display: 'inline-flex', alignItems: 'center',
               background: `${color}22`, border: `1px solid ${color}55`,
-              color: color, borderRadius: 999,
+              color, borderRadius: 999,
               padding: '1px 7px', fontSize: '0.72rem', fontWeight: 700,
               margin: '0 1px', fontFamily: "'Space Mono', monospace",
               letterSpacing: '0.03em', verticalAlign: 'middle',
             }}>
               {part}
+            </span>
+          )
+        }
+        if (userMatch) {
+          return (
+            <span key={i} style={{
+              display: 'inline-flex', alignItems: 'center',
+              background: `${USER_COLOR}22`, border: `1px solid ${USER_COLOR}55`,
+              color: USER_COLOR, borderRadius: 999,
+              padding: '1px 7px', fontSize: '0.72rem', fontWeight: 700,
+              margin: '0 1px', fontFamily: "'Space Mono', monospace",
+              letterSpacing: '0.03em', verticalAlign: 'middle',
+            }}>
+              @you
             </span>
           )
         }
@@ -57,15 +87,24 @@ function Message({ msg, clones }) {
 
   if (isUser) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '2px 0' }}>
-        <div style={{
-          maxWidth: '72%', padding: '10px 14px',
-          background: 'rgba(124,106,247,0.15)', border: '1px solid rgba(124,106,247,0.25)',
-          borderRadius: '18px 18px 4px 18px',
-          fontSize: '0.82rem', lineHeight: 1.65, color: 'var(--text)', whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-        }}>
-          <MessageText text={msg.text} />
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexDirection: 'row-reverse', padding: '2px 0' }}>
+        <UserAvatar size={30} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxWidth: '72%', alignItems: 'flex-end' }}>
+          <div style={{
+            fontSize: '0.58rem', letterSpacing: '0.1em', textTransform: 'uppercase',
+            color: USER_COLOR, paddingRight: 4,
+          }}>
+            you
+          </div>
+          <div style={{
+            padding: '10px 14px',
+            background: 'rgba(124,106,247,0.15)', border: '1px solid rgba(124,106,247,0.25)',
+            borderRadius: '18px 18px 4px 18px',
+            fontSize: '0.82rem', lineHeight: 1.65, color: 'var(--text)', whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}>
+            <MessageText text={msg.text} />
+          </div>
         </div>
       </div>
     )
@@ -105,18 +144,15 @@ function SystemMsg({ text }) {
   )
 }
 
-// Discord/Snapchat-style mention input
 function MentionInput({ value, onChange, onKeyDown, inputRef, placeholder }) {
   const editableRef = useRef(null)
 
-  // Clear the div when value resets to '' (after send)
   useEffect(() => {
     if (value === '' && editableRef.current) {
       editableRef.current.innerHTML = ''
     }
   }, [value])
 
-  // Expose focus() via inputRef
   useEffect(() => {
     if (inputRef) inputRef.current = { focus: () => editableRef.current?.focus() }
   }, [inputRef])
@@ -136,46 +172,48 @@ function MentionInput({ value, onChange, onKeyDown, inputRef, placeholder }) {
     return text
   }
 
+  const makePill = (label, id, color) => {
+    const pill = document.createElement('span')
+    pill.dataset.mention = id
+    pill.contentEditable = 'false'
+    pill.textContent = label
+    pill.style.cssText = `
+      display: inline-flex; align-items: center;
+      background: ${color}22;
+      border: 1px solid ${color}66;
+      color: ${color};
+      border-radius: 999px;
+      padding: 1px 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin: 0 2px;
+      cursor: default;
+      user-select: none;
+      font-family: 'Space Mono', monospace;
+      letter-spacing: 0.04em;
+      vertical-align: middle;
+    `
+    return pill
+  }
+
   const handleInput = () => {
     const sel = window.getSelection()
     const range = sel?.getRangeAt(0)
     const textNode = range?.startContainer
 
     if (textNode?.nodeType === Node.TEXT_NODE) {
-      const match = textNode.textContent.match(/@(00[1-6])/)
+      // Match @001-@006 or @you
+      const match = textNode.textContent.match(/@(00[1-6]|you)/)
       if (match) {
         const id = match[1]
-        const color = CLONE_COLORS[id] || '#7c6af7'
+        const color = id === 'you' ? USER_COLOR : (CLONE_COLORS[id] || USER_COLOR)
+        const label = `@${id}`
 
-        // Remove the @00x text
         textNode.textContent = textNode.textContent.replace(match[0], '')
 
-        // Build pill
-        const pill = document.createElement('span')
-        pill.dataset.mention = id
-        pill.contentEditable = 'false'
-        pill.textContent = `@${id}`
-        pill.style.cssText = `
-          display: inline-flex; align-items: center;
-          background: ${color}22;
-          border: 1px solid ${color}66;
-          color: ${color};
-          border-radius: 999px;
-          padding: 1px 8px;
-          font-size: 0.75rem;
-          font-weight: 700;
-          margin: 0 2px;
-          cursor: default;
-          user-select: none;
-          font-family: 'Space Mono', monospace;
-          letter-spacing: 0.04em;
-          vertical-align: middle;
-        `
-
-        // Insert pill at cursor
+        const pill = makePill(label, id, color)
         range.insertNode(pill)
 
-        // Move cursor after pill with a zero-width space
         const spacer = document.createTextNode('\u200B')
         pill.after(spacer)
         const newRange = document.createRange()
@@ -237,8 +275,9 @@ export default function Chat({ answers }) {
   const inputRef = useRef(null)
   const introsComplete = useRef(false)
   const stopped = useRef(false)
-  // FIX: use a ref so triggerReactions can call the latest fireClone without circular deps
   const fireCloneRef = useRef(null)
+  const lastReactionTime = useRef(0)  // cooldown tracker
+  const reactionCount = useRef(0)     // per-round reaction counter
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -267,17 +306,27 @@ export default function Chat({ answers }) {
     scrollToBottom()
   }, [scrollToBottom])
 
-  // FIX: use fireCloneRef to avoid stale closure — empty deps array is now safe
   const triggerReactions = useCallback(async (speakerId, spokenText) => {
     if (!introsComplete.current) return
+
+    // Cooldown check — don't pile on if reactions fired recently
+    const now = Date.now()
+    if (now - lastReactionTime.current < REACTION_COOLDOWN_MS) return
+    if (reactionCount.current >= MAX_REACTIONS_PER_ROUND) return
+
     for (const c of CLONES) {
       if (c.id === speakerId) continue
       if (stopped.current) return
+      if (reactionCount.current >= MAX_REACTIONS_PER_ROUND) return
+
       const prob = TENSION[`${speakerId}-${c.id}`] || 0.1
       if (Math.random() < prob) {
         await sleep(8000 + Math.random() * 7000)
         if (stopped.current) return
-        // FIX: escape quotes so they don't break the prompt string
+        if (reactionCount.current >= MAX_REACTIONS_PER_ROUND) return
+
+        reactionCount.current += 1
+        lastReactionTime.current = Date.now()
         const safeText = spokenText.replace(/"/g, "'").slice(0, 120)
         await fireCloneRef.current?.(c.id, `@${speakerId} just said: "${safeText}". React briefly, use @ when addressing clones — under 45 words.`)
       }
@@ -296,8 +345,7 @@ export default function Chat({ answers }) {
   const buildHistory = useCallback((maxItems = 14) => {
     return historyRef.current.slice(-maxItems).map(m => {
       if (m.isUser) return { role: 'user', content: m.text }
-      const clone = CLONES.find(c => c.id === m.cloneId)
-      return { role: 'assistant', content: `[${m.cloneId} ${clone?.short}]: ${m.text}` }
+      return { role: 'assistant', content: m.text }
     })
   }, [])
 
@@ -329,7 +377,6 @@ export default function Chat({ answers }) {
     })
   }, [answers, buildHistory, startStream, updateStream, finalizeStream, setStatus])
 
-  // FIX: keep fireCloneRef in sync with the latest fireClone
   useEffect(() => {
     fireCloneRef.current = fireClone
   }, [fireClone])
@@ -341,6 +388,8 @@ export default function Chat({ answers }) {
       const idle = CLONES.filter(c => !typing[c.id])
       if (idle.length === 0) return
       const randomClone = idle[Math.floor(Math.random() * idle.length)]
+      // Reset reaction counter for a new autonomous round
+      reactionCount.current = 0
       fireClone(randomClone.id, "The conversation has gone quiet. Say something — a thought or question to another clone. Use @ when addressing them. Under 40 words.")
       resetAutonomousTimer()
     }, 20000 + Math.random() * 17000)
@@ -366,6 +415,11 @@ export default function Chat({ answers }) {
     }
 
     stopped.current = false
+
+    // Reset reaction counters for this new round
+    reactionCount.current = 0
+    lastReactionTime.current = 0
+
     setBusy(true)
     setInput('')
     inputRef.current?.focus()
@@ -373,42 +427,37 @@ export default function Chat({ answers }) {
     setMessages(prev => [...prev, { id: Date.now(), isUser: true, text }])
     historyRef.current.push({ isUser: true, text })
     scrollToBottom()
+
+    // Unlock input immediately — clones fire in background
+    setBusy(false)
     resetAutonomousTimer()
 
-    try {
-      const mentionMatch = text.match(/@(00[1-6])/)
-      const primaryId = mentionMatch?.[1] || null
+    const mentionMatch = text.match(/@(00[1-6])/)
+    const primaryId = mentionMatch?.[1] || null
 
-      if (primaryId) {
-        if (!stopped.current) await fireClone(primaryId)
-        await sleep(700)
-        for (const c of CLONES) {
-          if (c.id === primaryId) continue
-          if (stopped.current) break
-          const prob = (TENSION[`${primaryId}-${c.id}`] || 0.2) * 1.5
-          if (Math.random() < prob) {
-            const lastPrimary = [...historyRef.current].reverse().find(m => m.cloneId === primaryId)
-            await sleep(2000 + Math.random() * 2000)
-            if (!stopped.current) await fireClone(c.id,
-              lastPrimary
-                // FIX: escape quotes in the prompt
-                ? `@${primaryId} just said: "${lastPrimary.text.replace(/"/g, "'").slice(0, 120)}". React briefly, use @ when addressing clones — under 45 words.`
-                : null
-            )
-          }
+    if (primaryId) {
+      if (!stopped.current) await fireClone(primaryId)
+      for (const c of CLONES) {
+        if (c.id === primaryId) continue
+        if (stopped.current) break
+        const prob = (TENSION[`${primaryId}-${c.id}`] || 0.2) * 1.5
+        if (Math.random() < prob) {
+          const lastPrimary = [...historyRef.current].reverse().find(m => m.cloneId === primaryId)
+          await sleep(2000 + Math.random() * 2000)
+          if (!stopped.current) await fireClone(c.id,
+            lastPrimary
+              ? `@${primaryId} just said: "${lastPrimary.text.replace(/"/g, "'").slice(0, 120)}". React briefly, use @ when addressing clones — under 45 words.`
+              : null
+          )
         }
-      } else {
-        const shuffled = [...CLONES].sort(() => Math.random() - 0.5)
-        for (const c of shuffled) {
-          if (stopped.current) break
-          await sleep(2500 + Math.random() * 2500)
-          if (!stopped.current) fireClone(c.id)
-        }
-        await sleep(4000)
       }
-    } finally {
-      setBusy(false)
-      resetAutonomousTimer()
+    } else {
+      const shuffled = [...CLONES].sort(() => Math.random() - 0.5)
+      for (const c of shuffled) {
+        if (stopped.current) break
+        await sleep(2500 + Math.random() * 2500)
+        if (!stopped.current) fireClone(c.id)
+      }
     }
   }, [input, busy, fireClone, scrollToBottom, resetAutonomousTimer, addSystemMsg])
 
@@ -438,6 +487,32 @@ export default function Chat({ answers }) {
           Within
         </div>
 
+        {/* User entry in sidebar */}
+        <div style={{
+          padding: '0.65rem 0.9rem',
+          borderLeft: `2px solid ${USER_COLOR}`,
+          borderBottom: '1px solid var(--border)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
+            <div style={{
+              width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+              background: USER_COLOR,
+            }} />
+            <span style={{ fontSize: '0.62rem', letterSpacing: '0.08em', color: USER_COLOR, textTransform: 'uppercase' }}>
+              you
+            </span>
+          </div>
+          <div style={{
+            fontFamily: "'Syne', sans-serif", fontSize: '0.78rem', fontWeight: 600,
+            color: USER_COLOR, marginBottom: 1,
+          }}>
+            The Real One
+          </div>
+          <div style={{ fontSize: '0.6rem', color: 'var(--muted)', lineHeight: 1.35 }}>
+            active
+          </div>
+        </div>
+
         <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
           {CLONES.map(c => {
             const s = statuses[c.id]
@@ -450,11 +525,10 @@ export default function Chat({ answers }) {
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 onClick={() => {
-                  if (!busy && !stopped.current) {
-                    setBusy(true)
+                  if (!stopped.current) {
+                    reactionCount.current = 0
                     fireClone(c.id, "You've been quiet. Say something on your mind — under 60 words. Use @ when addressing other clones.")
-                      .then(() => setBusy(false))
-                      .catch(() => setBusy(false))
+                      .catch(() => {})
                   }
                 }}
               >
@@ -487,7 +561,7 @@ export default function Chat({ answers }) {
           padding: '0.75rem', borderTop: '1px solid var(--border)',
           fontSize: '0.58rem', color: 'var(--muted)', lineHeight: 1.6,
         }}>
-          Tap a clone to nudge them.<br />Use @001–@006 to address one.<br />Type "stop" to pause.
+          Tap a clone to nudge them.<br />Use @001–@006 or @you.<br />Type "stop" to pause.
         </div>
       </div>
 
@@ -530,18 +604,18 @@ export default function Chat({ answers }) {
             onChange={setInput}
             onKeyDown={handleKeyDown}
             inputRef={inputRef}
-            placeholder="Message all clones, or @001 to address one specifically…"
+            placeholder="Message all clones, or @001 to address one…"
           />
           <button
             onClick={sendMessage}
-            disabled={!input.trim() || busy}
+            disabled={!input.trim()}
             style={{
               padding: '0.65rem 1.4rem', flexShrink: 0,
-              background: input.trim() && !busy ? 'rgba(124,106,247,0.18)' : 'transparent',
-              border: `1px solid ${input.trim() && !busy ? 'rgba(124,106,247,0.5)' : 'var(--border)'}`,
-              borderRadius: 20, color: input.trim() && !busy ? '#7c6af7' : 'var(--muted)',
+              background: input.trim() ? 'rgba(124,106,247,0.18)' : 'transparent',
+              border: `1px solid ${input.trim() ? 'rgba(124,106,247,0.5)' : 'var(--border)'}`,
+              borderRadius: 20, color: input.trim() ? '#7c6af7' : 'var(--muted)',
               fontFamily: "'Space Mono', monospace", fontSize: '0.7rem',
-              letterSpacing: '0.1em', cursor: input.trim() && !busy ? 'pointer' : 'not-allowed',
+              letterSpacing: '0.1em', cursor: input.trim() ? 'pointer' : 'not-allowed',
               transition: 'all 0.15s',
             }}
           >
