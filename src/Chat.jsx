@@ -18,25 +18,6 @@ function Avatar({ clone, size = 32 }) {
   )
 }
 
-function TypingBubble({ clone }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, padding: '2px 0' }}>
-      <Avatar clone={clone} size={28} />
-      <div style={{
-        padding: '8px 14px', background: 'var(--bg3)', border: '1px solid var(--border)',
-        borderRadius: '18px 18px 18px 4px', display: 'flex', alignItems: 'center', gap: 4,
-      }}>
-        {[0, 1, 2].map(i => (
-          <div key={i} style={{
-            width: 5, height: 5, borderRadius: '50%', background: clone.color,
-            animation: `bounce 1s ${i * 0.15}s infinite`,
-          }} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function Message({ msg, clones }) {
   const clone = clones.find(c => c.id === msg.cloneId)
   const isUser = msg.isUser
@@ -105,6 +86,7 @@ export default function Chat({ answers }) {
   const autonomousTimer = useRef(null)
   const inputRef = useRef(null)
   const introsComplete = useRef(false)
+  const stopped = useRef(false)
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -137,10 +119,12 @@ export default function Chat({ answers }) {
     if (!introsComplete.current) return
     for (const c of CLONES) {
       if (c.id === speakerId) continue
+      if (stopped.current) return
       const prob = TENSION[`${speakerId}-${c.id}`] || 0.1
       if (Math.random() < prob) {
-        await sleep(6000 + Math.random() * 5000)
-        await fireClone(c.id, `${speakerId} just said: "${spokenText}". React briefly — under 45 words.`)
+        await sleep(8000 + Math.random() * 7000)
+        if (stopped.current) return
+        await fireClone(c.id, `@${speakerId} just said: "${spokenText}". React briefly, use @ when addressing clones — under 45 words.`)
       }
     }
   }, [])
@@ -158,11 +142,12 @@ export default function Chat({ answers }) {
     return historyRef.current.slice(-maxItems).map(m => {
       if (m.isUser) return { role: 'user', content: m.text }
       const clone = CLONES.find(c => c.id === m.cloneId)
-      return { role: 'user', content: `[${m.cloneId} ${clone?.short}]: ${m.text}` }
+      return { role: 'assistant', content: `[${m.cloneId} ${clone?.short}]: ${m.text}` }
     })
   }, [])
 
   const fireClone = useCallback(async (cloneId, extraInstruction = null) => {
+    if (stopped.current) return
     const sysPrompt = buildSystemPrompt(cloneId, answers)
     const hist = buildHistory()
     const msgs = extraInstruction
@@ -192,10 +177,11 @@ export default function Chat({ answers }) {
   const resetAutonomousTimer = useCallback(() => {
     if (autonomousTimer.current) clearTimeout(autonomousTimer.current)
     autonomousTimer.current = setTimeout(() => {
+      if (stopped.current) return
       const idle = CLONES.filter(c => !typing[c.id])
       if (idle.length === 0) return
       const randomClone = idle[Math.floor(Math.random() * idle.length)]
-      fireClone(randomClone.id, "The conversation has gone quiet. Say something unprompted — a new thought, reaction, or question to another clone. Under 40 words.")
+      fireClone(randomClone.id, "The conversation has gone quiet. Say something — a thought or question to another clone. Use @ when addressing them. Under 40 words.")
       resetAutonomousTimer()
     }, 20000 + Math.random() * 17000)
   }, [fireClone, typing])
@@ -210,6 +196,19 @@ export default function Chat({ answers }) {
   const sendMessage = useCallback(async () => {
     const text = input.trim()
     if (!text || busy) return
+
+    // stop command
+    if (/^stop/i.test(text)) {
+      stopped.current = true
+      setInput('')
+      setMessages(prev => [...prev, { id: Date.now(), isUser: true, text }])
+      if (autonomousTimer.current) clearTimeout(autonomousTimer.current)
+      addSystemMsg('Conversation paused')
+      return
+    }
+
+    // resume on any normal message
+    stopped.current = false
     setBusy(true)
     setInput('')
     inputRef.current?.focus()
@@ -224,17 +223,18 @@ export default function Chat({ answers }) {
       const primaryId = mentionMatch?.[1] || null
 
       if (primaryId) {
-        await fireClone(primaryId)
+        if (!stopped.current) await fireClone(primaryId)
         await sleep(700)
         for (const c of CLONES) {
           if (c.id === primaryId) continue
+          if (stopped.current) break
           const prob = (TENSION[`${primaryId}-${c.id}`] || 0.2) * 1.5
           if (Math.random() < prob) {
             const lastPrimary = [...historyRef.current].reverse().find(m => m.cloneId === primaryId)
-            await sleep(1500 + Math.random() * 1500)
-            await fireClone(c.id,
+            await sleep(2000 + Math.random() * 2000)
+            if (!stopped.current) await fireClone(c.id,
               lastPrimary
-                ? `${primaryId} just said: "${lastPrimary.text}". React briefly — under 45 words.`
+                ? `@${primaryId} just said: "${lastPrimary.text}". React briefly, use @ when addressing clones — under 45 words.`
                 : null
             )
           }
@@ -242,8 +242,9 @@ export default function Chat({ answers }) {
       } else {
         const shuffled = [...CLONES].sort(() => Math.random() - 0.5)
         for (const c of shuffled) {
-          await sleep(1500 + Math.random() * 2000)
-          fireClone(c.id)
+          if (stopped.current) break
+          await sleep(2500 + Math.random() * 2500)
+          if (!stopped.current) fireClone(c.id)
         }
         await sleep(4000)
       }
@@ -251,7 +252,7 @@ export default function Chat({ answers }) {
       setBusy(false)
       resetAutonomousTimer()
     }
-  }, [input, busy, fireClone, scrollToBottom, resetAutonomousTimer])
+  }, [input, busy, fireClone, scrollToBottom, resetAutonomousTimer, addSystemMsg])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -291,9 +292,9 @@ export default function Chat({ answers }) {
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 onClick={() => {
-                  if (!busy) {
+                  if (!busy && !stopped.current) {
                     setBusy(true)
-                    fireClone(c.id, "You've been quiet. Say something on your mind — under 60 words.")
+                    fireClone(c.id, "You've been quiet. Say something on your mind — under 60 words. Use @ when addressing other clones.")
                       .then(() => setBusy(false))
                       .catch(() => setBusy(false))
                   }
@@ -328,7 +329,7 @@ export default function Chat({ answers }) {
           padding: '0.75rem', borderTop: '1px solid var(--border)',
           fontSize: '0.58rem', color: 'var(--muted)', lineHeight: 1.6,
         }}>
-          Tap a clone to nudge them.<br />Use @001–@006 to address one.
+          Tap a clone to nudge them.<br />Use @001–@006 to address one.<br />Type "stop" to pause.
         </div>
       </div>
 
