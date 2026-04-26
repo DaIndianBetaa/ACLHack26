@@ -7,13 +7,13 @@ import Chat from './Chat.jsx'
 const API_KEY = import.meta.env.VITE_API_KEY
 
 
-// Inject API key globally so api.js can use it
+// Inject API key globally so api.js can use it (ai help)
 window.__ECHOES_API_KEY__ = API_KEY
 
-// Override fetch to inject auth header for OpenAI calls
+// Override fetch to inject auth header for OpenAI calls (ai help)
 const _origFetch = window.fetch
 window.fetch = function(url, opts = {}) {
-  if (typeof url === 'string' && url.includes('openai.com') && window.__ECHOES_API_KEY__) {
+  if (typeof url === 'string' && url.includes('/api/v1') && window.__ECHOES_API_KEY__) {
     opts = { ...opts, headers: { ...opts.headers, 'Authorization': `Bearer ${window.__ECHOES_API_KEY__}` } }
   }
   return _origFetch(url, opts)
