@@ -135,6 +135,7 @@ export default function Chat({ answers, apiKey }) {
     setStatus(cloneId, 'active')
     historyRef.current.push({ cloneId, text, isUser: false })
     scrollToBottom()
+    triggerReactions(cloneId, text)
   }, [setStatus, scrollToBottom])
 
   const buildHistory = useCallback((maxItems = 14) => {
@@ -171,24 +172,28 @@ export default function Chat({ answers, apiKey }) {
     })
   }, [answers, buildHistory, startStream, updateStream, finalizeStream, setStatus])
 
+  const triggerReactions = useCallback(async (speakerId, spokenText) => {
+  for (const c of CLONES) {
+    if (c.id === speakerId) continue
+    const prob = TENSION[`${speakerId}-${c.id}`] || 0.1
+    if (Math.random() < prob) {
+      await sleep(3000 + Math.random() * 2200)
+      await fireClone(c.id, `${speakerId} just said: "${spokenText}". React briefly — under 45 words.`)
+    }
+  }
+}, [fireClone])
+
   const resetAutonomousTimer = useCallback(() => {
-    if (autonomousTimer.current) clearTimeout(autonomousTimer.current)
-    autonomousTimer.current = setTimeout(async () => {
-      if (busy) { resetAutonomousTimer(); return }
-      const pairs = [['002', '003'], ['001', '006'], ['004', '005']]
-      const [aId, bId] = pairs[Math.floor(Math.random() * pairs.length)]
-      const lastB = [...historyRef.current].reverse().find(m => m.cloneId === bId)
-      if (!lastB) { resetAutonomousTimer(); return }
-      setBusy(true)
-      const bClone = CLONES.find(c => c.id === bId)
-      await fireClone(aId, `React to what ${bId} ${bClone?.short} just said: "${lastB.text}" — under 50 words.`)
-      await sleep(2000)
-      const lastA = [...historyRef.current].reverse().find(m => m.cloneId === aId)
-      if (lastA) await fireClone(bId, `${aId} just said: "${lastA.text}" — respond directly, under 50 words.`)
-      setBusy(false)
-      resetAutonomousTimer()
-    }, 38000 + Math.random() * 18000)
-  }, [busy, fireClone])
+  if (autonomousTimer.current) clearTimeout(autonomousTimer.current)
+  autonomousTimer.current = setTimeout(() => {
+    // pick a clone that isn't currently typing
+    const idle = CLONES.filter(c => !typing[c.id])
+    if (idle.length === 0) return
+    const randomClone = idle[Math.floor(Math.random() * idle.length)]
+    fireClone(randomClone.id, "The conversation has gone quiet. Say something unprompted — a new thought, reaction, or question to another clone. Under 40 words.")
+    resetAutonomousTimer()
+  }, 20000 + Math.random() * 17000)  //20-37 sec delay
+}, [fireClone, typing])
 
   // Intro messages on mount
   useEffect(() => {
@@ -246,12 +251,15 @@ export default function Chat({ answers, apiKey }) {
     } else {
       // Everyone responds, staggered
       const shuffled = [...CLONES].sort(() => Math.random() - 0.5)
-      for (let i = 0; i < shuffled.length; i++) {
-        await sleep(i * 280)
-        fireClone(shuffled[i].id)
+      for (const c of shuffled) {
+        const prob = TENSION[`user-${c.id}`] || 0.7  
+        if (Math.random() < prob) {
+          await sleep(200 + Math.random() * 400)
+          fireClone(c.id)
+        }
       }
       // Wait for all to roughly finish
-      await sleep(CLONES.length * 280 + 3000)
+      await sleep(3000)
     }
   } finally {
     setBusy(false)
