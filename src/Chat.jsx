@@ -91,17 +91,20 @@ function SystemMsg({ text }) {
   )
 }
 
-export default function Chat({ answers, apiKey }) {
+export default function Chat({ answers }) {
   const [messages, setMessages] = useState([])
-  const [streamingText, setStreamingText] = useState({}) // cloneId -> current streamed text
-  const [typing, setTyping] = useState({}) // cloneId -> bool
+  const [typing, setTyping] = useState({})
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
-  const [statuses, setStatuses] = useState(() => Object.fromEntries(CLONES.map(c => [c.id, 'watching'])))
+  const [statuses, setStatuses] = useState(() =>
+    Object.fromEntries(CLONES.map(c => [c.id, 'watching']))
+  )
+
   const threadRef = useRef(null)
-  const historyRef = useRef([]) // shared mutable history for context building
+  const historyRef = useRef([])
   const autonomousTimer = useRef(null)
   const inputRef = useRef(null)
+  const introsComplete = useRef(false)
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -109,7 +112,8 @@ export default function Chat({ answers, apiKey }) {
     }, 30)
   }, [])
 
-  const setStatus = useCallback((id, s) => setStatuses(prev => ({ ...prev, [id]: s })), [])
+  const setStatus = useCallback((id, s) =>
+    setStatuses(prev => ({ ...prev, [id]: s })), [])
 
   const addSystemMsg = useCallback((text) => {
     setMessages(prev => [...prev, { id: Date.now() + Math.random(), isSystem: true, text }])
@@ -129,6 +133,18 @@ export default function Chat({ answers, apiKey }) {
     scrollToBottom()
   }, [scrollToBottom])
 
+  const triggerReactions = useCallback(async (speakerId, spokenText) => {
+    if (!introsComplete.current) return
+    for (const c of CLONES) {
+      if (c.id === speakerId) continue
+      const prob = TENSION[`${speakerId}-${c.id}`] || 0.1
+      if (Math.random() < prob) {
+        await sleep(6000 + Math.random() * 5000)
+        await fireClone(c.id, `${speakerId} just said: "${spokenText}". React briefly — under 45 words.`)
+      }
+    }
+  }, [])
+
   const finalizeStream = useCallback((msgId, cloneId, text) => {
     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text, streaming: false } : m))
     setTyping(prev => ({ ...prev, [cloneId]: false }))
@@ -136,11 +152,10 @@ export default function Chat({ answers, apiKey }) {
     historyRef.current.push({ cloneId, text, isUser: false })
     scrollToBottom()
     triggerReactions(cloneId, text)
-  }, [setStatus, scrollToBottom])
+  }, [setStatus, scrollToBottom, triggerReactions])
 
   const buildHistory = useCallback((maxItems = 14) => {
-    const hist = historyRef.current.slice(-maxItems)
-    return hist.map(m => {
+    return historyRef.current.slice(-maxItems).map(m => {
       if (m.isUser) return { role: 'user', content: m.text }
       const clone = CLONES.find(c => c.id === m.cloneId)
       return { role: 'user', content: `[${m.cloneId} ${clone?.short}]: ${m.text}` }
@@ -152,7 +167,9 @@ export default function Chat({ answers, apiKey }) {
     const hist = buildHistory()
     const msgs = extraInstruction
       ? [...hist, { role: 'user', content: extraInstruction }]
-      : hist.length ? hist : [{ role: 'user', content: 'You just appeared in this group chat. Say something.' }]
+      : hist.length
+        ? hist
+        : [{ role: 'user', content: 'You just appeared in this group chat. Say something.' }]
 
     const msgId = startStream(cloneId)
 
@@ -172,45 +189,21 @@ export default function Chat({ answers, apiKey }) {
     })
   }, [answers, buildHistory, startStream, updateStream, finalizeStream, setStatus])
 
-  const triggerReactions = useCallback(async (speakerId, spokenText) => {
-  for (const c of CLONES) {
-    if (c.id === speakerId) continue
-    const prob = TENSION[`${speakerId}-${c.id}`] || 0.1
-    if (Math.random() < prob) {
-      await sleep(3000 + Math.random() * 2200)
-      await fireClone(c.id, `${speakerId} just said: "${spokenText}". React briefly — under 45 words.`)
-    }
-  }
-}, [fireClone])
-
   const resetAutonomousTimer = useCallback(() => {
-  if (autonomousTimer.current) clearTimeout(autonomousTimer.current)
-  autonomousTimer.current = setTimeout(() => {
-    // pick a clone that isn't currently typing
-    const idle = CLONES.filter(c => !typing[c.id])
-    if (idle.length === 0) return
-    const randomClone = idle[Math.floor(Math.random() * idle.length)]
-    fireClone(randomClone.id, "The conversation has gone quiet. Say something unprompted — a new thought, reaction, or question to another clone. Under 40 words.")
-    resetAutonomousTimer()
-  }, 20000 + Math.random() * 17000)  //20-37 sec delay
-}, [fireClone, typing])
+    if (autonomousTimer.current) clearTimeout(autonomousTimer.current)
+    autonomousTimer.current = setTimeout(() => {
+      const idle = CLONES.filter(c => !typing[c.id])
+      if (idle.length === 0) return
+      const randomClone = idle[Math.floor(Math.random() * idle.length)]
+      fireClone(randomClone.id, "The conversation has gone quiet. Say something unprompted — a new thought, reaction, or question to another clone. Under 40 words.")
+      resetAutonomousTimer()
+    }, 20000 + Math.random() * 17000)
+  }, [fireClone, typing])
 
-  // Intro messages on mount
+  // On mount — show system message only, wait for user to speak first
   useEffect(() => {
     addSystemMsg('All 6 versions of you are online')
-    const fireIntros = async () => {
-      setBusy(true)
-      try {
-        for (let i = 0; i < CLONES.length; i++) {
-          await sleep(i * 350)
-          await fireClone(CLONES[i].id, "You've just appeared in a group chat with 5 other versions of yourself. Send one short opening message reacting to this surreal moment. Under 50 words.")
-        }
-      } finally {
-        setBusy(false)
-        resetAutonomousTimer()
-      }
-    }
-    fireIntros()
+    introsComplete.current = true
     return () => { if (autonomousTimer.current) clearTimeout(autonomousTimer.current) }
   }, [])
 
@@ -221,7 +214,6 @@ export default function Chat({ answers, apiKey }) {
     setInput('')
     inputRef.current?.focus()
 
-    // Add user message
     setMessages(prev => [...prev, { id: Date.now(), isUser: true, text }])
     historyRef.current.push({ isUser: true, text })
     scrollToBottom()
@@ -231,40 +223,34 @@ export default function Chat({ answers, apiKey }) {
       const mentionMatch = text.match(/@(00[1-6])/)
       const primaryId = mentionMatch?.[1] || null
 
-    if (primaryId) {
-      await fireClone(primaryId)
-      await sleep(700)
-      // Pile-ons based on tension
-      for (const c of CLONES) {
-        if (c.id === primaryId) continue
-        const prob = TENSION[`${primaryId}-${c.id}`] || 0.2
-        if (Math.random() < prob) {
-          const lastPrimary = [...historyRef.current].reverse().find(m => m.cloneId === primaryId)
-          await sleep(400 + Math.random() * 400)
-          await fireClone(c.id,
-            lastPrimary
-              ? `${primaryId} just said: "${lastPrimary.text}". React briefly — under 45 words.`
-              : null
-          )
+      if (primaryId) {
+        await fireClone(primaryId)
+        await sleep(700)
+        for (const c of CLONES) {
+          if (c.id === primaryId) continue
+          const prob = (TENSION[`${primaryId}-${c.id}`] || 0.2) * 1.5
+          if (Math.random() < prob) {
+            const lastPrimary = [...historyRef.current].reverse().find(m => m.cloneId === primaryId)
+            await sleep(1500 + Math.random() * 1500)
+            await fireClone(c.id,
+              lastPrimary
+                ? `${primaryId} just said: "${lastPrimary.text}". React briefly — under 45 words.`
+                : null
+            )
+          }
         }
-      }
-    } else {
-      // Everyone responds, staggered
-      const shuffled = [...CLONES].sort(() => Math.random() - 0.5)
-      for (const c of shuffled) {
-        const prob = TENSION[`user-${c.id}`] || 0.7  
-        if (Math.random() < prob) {
-          await sleep(200 + Math.random() * 400)
+      } else {
+        const shuffled = [...CLONES].sort(() => Math.random() - 0.5)
+        for (const c of shuffled) {
+          await sleep(1500 + Math.random() * 2000)
           fireClone(c.id)
         }
+        await sleep(4000)
       }
-      // Wait for all to roughly finish
-      await sleep(3000)
+    } finally {
+      setBusy(false)
+      resetAutonomousTimer()
     }
-  } finally {
-    setBusy(false)
-    resetAutonomousTimer()
-  }
   }, [input, busy, fireClone, scrollToBottom, resetAutonomousTimer])
 
   const handleKeyDown = (e) => {
@@ -283,7 +269,6 @@ export default function Chat({ answers, apiKey }) {
         borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
       }}>
-        {/* Logo */}
         <div style={{
           padding: '1rem', borderBottom: '1px solid var(--border)',
           fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '1.15rem',
@@ -294,13 +279,13 @@ export default function Chat({ answers, apiKey }) {
           Within
         </div>
 
-        {/* Clone list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
           {CLONES.map(c => {
             const s = statuses[c.id]
             return (
               <div key={c.id} style={{
-                padding: '0.65rem 0.9rem', borderLeft: `2px solid ${s !== 'watching' ? c.color : 'transparent'}`,
+                padding: '0.65rem 0.9rem',
+                borderLeft: `2px solid ${s !== 'watching' ? c.color : 'transparent'}`,
                 cursor: 'pointer', transition: 'background 0.15s',
               }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
@@ -308,7 +293,9 @@ export default function Chat({ answers, apiKey }) {
                 onClick={() => {
                   if (!busy) {
                     setBusy(true)
-                    fireClone(c.id, "You've been quiet. Say something on your mind — under 60 words.").then(() => setBusy(false)).catch(() => setBusy(false))
+                    fireClone(c.id, "You've been quiet. Say something on your mind — under 60 words.")
+                      .then(() => setBusy(false))
+                      .catch(() => setBusy(false))
                   }
                 }}
               >
@@ -337,7 +324,6 @@ export default function Chat({ answers, apiKey }) {
           })}
         </div>
 
-        {/* Help tip */}
         <div style={{
           padding: '0.75rem', borderTop: '1px solid var(--border)',
           fontSize: '0.58rem', color: 'var(--muted)', lineHeight: 1.6,
@@ -348,8 +334,6 @@ export default function Chat({ answers, apiKey }) {
 
       {/* Main chat */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-        {/* Chat thread */}
         <div
           ref={threadRef}
           style={{
@@ -373,7 +357,6 @@ export default function Chat({ answers, apiKey }) {
           })}
         </div>
 
-        {/* Input bar */}
         <div style={{
           padding: '0.85rem 1.25rem', borderTop: '1px solid var(--border)',
           background: 'var(--bg2)', display: 'flex', gap: '0.65rem', alignItems: 'flex-end',
