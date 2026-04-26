@@ -18,14 +18,14 @@ export default function Landing({ onStart }) {
         fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1,
         background: 'linear-gradient(135deg, #7c6af7 0%, #e879f9 50%, #38bdf8 100%)',
         WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-      }}>ECHOES</div>
+      }}>Within</div>
 
       <div style={{ fontSize: '0.65rem', letterSpacing: '0.28em', color: 'var(--muted)', textTransform: 'uppercase' }}>
-        every choice &nbsp;·&nbsp; every version &nbsp;·&nbsp; every you
+        every choice &nbsp;·&nbsp; 6 clones &nbsp;·&nbsp; all you
       </div>
 
       <p style={{ fontSize: '0.8rem', color: 'var(--muted2)', maxWidth: 380, lineHeight: 1.9, marginTop: '0.5rem' }}>
-        Answer 15 questions. Six parallel versions of you are generated.<br />
+        Answer 15 questions. Six clones of you are generated.<br />
         They all live in one group chat — with each other, and with you.
       </p>
 
@@ -43,10 +43,6 @@ export default function Landing({ onStart }) {
       >
         BEGIN CLONING
       </button>
-
-      <div style={{ position: 'absolute', bottom: '2rem', fontSize: '0.6rem', color: 'var(--muted)', letterSpacing: '0.1em' }}>
-        REQUIRES ANTHROPIC API KEY · SET IN src/App.jsx
-      </div>
     </div>
   )
 }

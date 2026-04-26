@@ -9,12 +9,12 @@ export default function InitScreen({ onReady }) {
     const steps = [
       { delay: 600,  fn: () => { setVisible(['001']); setStatus('Building The Original...') } },
       { delay: 1400,  fn: () => { setVisible(v => [...v, '002']); setStatus('Building The Ambitious...') } },
-      { delay: 2250, fn: () => { setVisible(v => [...v, '003']); setStatus('Building The Quiet...') } },
+      { delay: 2250, fn: () => { setVisible(v => [...v, '003']); setStatus('Building The Loner...') } },
       { delay: 3100, fn: () => { setVisible(v => [...v, '004']); setStatus('Building The Ancient...') } },
       { delay: 3725, fn: () => { setVisible(v => [...v, '005']); setStatus('Building The Future...') } },
       { delay: 4350, fn: () => { setVisible(v => [...v, '006']); setStatus('Building The Opposite...') } },
-      { delay: 5000, fn: () => setStatus('All 6 clones initialized.') },
-      { delay: 5250, fn: onReady },
+      { delay: 5500, fn: () => setStatus('All 6 clones initialized.') },
+      { delay: 5750, fn: onReady },
     ]
     const timers = steps.map(s => setTimeout(s.fn, s.delay))
     return () => timers.forEach(clearTimeout)
