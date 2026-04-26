@@ -7,7 +7,6 @@ export default function Landing({ onStart }) {
       justifyContent: 'center', height: '100vh', gap: '1.5rem',
       textAlign: 'center', padding: '2rem', position: 'relative', overflow: 'hidden',
     }}>
-      {/* Glow */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none',
         background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(124,106,247,0.10) 0%, transparent 70%)',

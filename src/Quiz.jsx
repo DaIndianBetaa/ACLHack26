@@ -52,7 +52,7 @@ export default function Quiz({ onComplete }) {
       maxWidth: 620, margin: '0 auto', width: '100%', padding: '2rem',
       justifyContent: 'center', gap: '2rem',
     }}>
-      {/* Progress */}
+      {}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '0.6rem', letterSpacing: '0.2em', color: 'var(--muted)', textTransform: 'uppercase' }}>
@@ -70,8 +70,6 @@ export default function Quiz({ onComplete }) {
           }} />
         </div>
       </div>
-
-      {/* Question */}
       <div style={{
         fontFamily: "'Syne', sans-serif", fontSize: 'clamp(1.1rem, 3vw, 1.45rem)',
         fontWeight: 600, lineHeight: 1.45, color: 'var(--text)',

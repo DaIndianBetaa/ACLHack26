@@ -307,19 +307,13 @@ function MentionInput({ value, onChange, onKeyDown, inputRef, placeholder }) {
 export default function Chat({ answers }) {
   const [messages, setMessages] = useState([])
   const [typing, setTyping] = useState({})
-  const [typing, setTyping] = useState({})
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [statuses, setStatuses] = useState(() =>
     Object.fromEntries(CLONES.map(c => [c.id, 'watching']))
   )
 
-  const [statuses, setStatuses] = useState(() =>
-    Object.fromEntries(CLONES.map(c => [c.id, 'watching']))
-  )
-
   const threadRef = useRef(null)
-  const historyRef = useRef([])
   const historyRef = useRef([])
   const autonomousTimer = useRef(null)
   const inputRef = useRef(null)
@@ -336,8 +330,6 @@ export default function Chat({ answers }) {
     }, 30)
   }, [])
 
-  const setStatus = useCallback((id, s) =>
-    setStatuses(prev => ({ ...prev, [id]: s })), [])
   const setStatus = useCallback((id, s) =>
     setStatuses(prev => ({ ...prev, [id]: s })), [])
 
@@ -392,10 +384,8 @@ export default function Chat({ answers }) {
     scrollToBottom()
     triggerReactions(cloneId, text)
   }, [setStatus, scrollToBottom, triggerReactions])
-  }, [setStatus, scrollToBottom, triggerReactions])
 
   const buildHistory = useCallback((maxItems = 14) => {
-    return historyRef.current.slice(-maxItems).map(m => {
     return historyRef.current.slice(-maxItems).map(m => {
       if (m.isUser) return { role: 'user', content: m.text }
       return { role: 'assistant', content: m.text }
@@ -408,9 +398,6 @@ export default function Chat({ answers }) {
     const hist = buildHistory()
     const msgs = extraInstruction
       ? [...hist, { role: 'user', content: extraInstruction }]
-      : hist.length
-        ? hist
-        : [{ role: 'user', content: 'You just appeared in this group chat. Say something.' }]
       : hist.length
         ? hist
         : [{ role: 'user', content: 'You just appeared in this group chat. Say something.' }]
@@ -454,7 +441,6 @@ export default function Chat({ answers }) {
     if (hasInit.current) return
     hasInit.current = true
     addSystemMsg('All 6 versions of you are online')
-    introsComplete.current = true
     introsComplete.current = true
     return () => { if (autonomousTimer.current) clearTimeout(autonomousTimer.current) }
   }, [])
@@ -573,8 +559,6 @@ export default function Chat({ answers }) {
             const s = statuses[c.id]
             return (
               <div key={c.id} style={{
-                padding: '0.65rem 0.9rem',
-                borderLeft: `2px solid ${s !== 'watching' ? c.color : 'transparent'}`,
                 padding: '0.65rem 0.9rem',
                 borderLeft: `2px solid ${s !== 'watching' ? c.color : 'transparent'}`,
                 cursor: 'pointer', transition: 'background 0.15s',
