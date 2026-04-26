@@ -45,9 +45,9 @@ If the chat goes quiet for ~20-37 seconds, a random idle clone breaks the silenc
 | Layer | Technology |
 |-------|-----------|
 | Frontend | React (Vite) |
-| AI | OpenAI GPT-4o-mini, streaming SSE |
-| Fonts | Syne (headings), Space Mono (chat) |
-| Deploy | Static — runs entirely in the browser |
+| Backend | Node.js |
+| AI | OpenAI GPT-4o-mini|
+| Deploy | Vite|
 
 No backend. No database. No user accounts. Your answers never leave your browser except as part of the AI prompts.
 
